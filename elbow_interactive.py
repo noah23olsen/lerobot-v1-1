@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-import os
-import sys
-import time
+
 from lerobot.common.robot_devices.motors.configs import DynamixelMotorsBusConfig
 from lerobot.common.robot_devices.motors.dynamixel import DynamixelMotorsBus, TorqueMode
-import numpy as np
-from getch import getch
+import time
+import sys
 
 # Configure your robot arm
 follower_config = DynamixelMotorsBusConfig(
@@ -21,36 +19,36 @@ follower_config = DynamixelMotorsBusConfig(
     },
 )
 
-# Movement step sizes
-STEP_SIZE = 50
+# Set the step size for movements - can be adjusted
+STEP_SIZE = 100  # Increased for faster movement
 
-print("\n=== ROBOT INTERACTIVE CONTROL ===\n")
+# Starting positions - will be updated when we move
+shoulder_pan_pos = 2000  # Middle position for shoulder
+elbow_flex_pos = 3300    # Middle position for elbow
 
-print("This script lets you control the robot with simple commands.")
+print("\n=== ROBOT DIRECT CONTROL - FULL RANGE ===\n")
+
+print("This script directly controls the robot with NO SAFETY LIMITS:")
 print("\nCONTROLS:")
-print("  w: Move elbow UP")
-print("  s: Move elbow DOWN")
-print("  a: Rotate shoulder LEFT")
-print("  d: Rotate shoulder RIGHT")
-print("  r: Read current positions")
+print("  w: Move elbow UP by 100 steps")
+print("  s: Move elbow DOWN by 100 steps")
+print("  a: Rotate shoulder LEFT by 100 steps")
+print("  d: Rotate shoulder RIGHT by 100 steps")
+print("  +: Increase step size by 50")
+print("  -: Decrease step size by 50")
+print("  h: Go to home position")
+print("  r: Try to read current positions")
+print("  v: Check motor voltage (helps diagnose power issues)")
 print("  q: Exit the program")
+print("\nVOLTAGE TROUBLESHOOTING:")
+print("- If motors aren't moving, check that the 12V power supply is firmly connected")
+print("- Make sure the power supply is plugged into a working outlet")
+print("- For best performance, avoid using the robot on a low battery or through USB hubs")
 print("\nMake sure:")
 print("- 12V power supply is connected to the follower arm")
 print("- USB cable is connected from follower arm to computer")
 print("\nPress Enter when ready...")
 input()
-
-# Set up graceful exit
-def cleanup(arm):
-    print("\nDisabling torque...")
-    try:
-        arm.write("Torque_Enable", TorqueMode.DISABLED.value)
-        print("Disconnecting...")
-        arm.disconnect()
-        print("Done.")
-    except Exception as e:
-        print(f"Error during cleanup: {e}")
-    sys.exit(0)
 
 try:
     print("\nConnecting to robot...")
@@ -62,58 +60,100 @@ try:
     arm.write("Torque_Enable", TorqueMode.ENABLED.value)
     print("✅ Torque enabled")
     
-    # Set a moderate velocity
-    arm.write("Profile_Velocity", 30)
+    # Set a higher velocity for faster movements
+    arm.write("Profile_Velocity", 50)
     
-    # Read initial positions
+    # Try to read initial positions
     try:
         positions = arm.read("Present_Position")
         print(f"Current positions: {positions}")
-        
-        # Extract positions we care about
-        shoulder_pan_pos = positions[0]  # For left/right (a/d)
-        elbow_flex_pos = positions[2]    # For up/down (w/s)
-        
-        print(f"Shoulder rotation: {shoulder_pan_pos}")
-        print(f"Elbow position: {elbow_flex_pos}")
+        shoulder_pan_pos = positions[0]
+        elbow_flex_pos = positions[2]
     except Exception as e:
-        print(f"Couldn't read positions, using defaults: {e}")
-        shoulder_pan_pos = 2028  # Default from custom_moves.py
-        elbow_flex_pos = 3139    # Default from custom_moves.py
+        print(f"Could not read positions: {e}")
+        print("Using default positions instead")
     
-    print("\nReady for control! Enter commands (w/a/s/d/r/q):")
+    print(f"Starting shoulder position: {shoulder_pan_pos}")
+    print(f"Starting elbow position: {elbow_flex_pos}")
+    print(f"Current step size: {STEP_SIZE}")
+    
+    print("\nReady for control! Enter commands (w/a/s/d/+/-/h/r/v/q):")
     
     # Main control loop
     while True:
-        # Ask for user input
         cmd = input("> ").strip().lower()
         
         if cmd == 'w':
             # Elbow UP
             elbow_flex_pos += STEP_SIZE
             print(f"Moving elbow UP to: {elbow_flex_pos}")
-            arm.write("Goal_Position", elbow_flex_pos, "elbow_flex")
+            try:
+                arm.write("Goal_Position", elbow_flex_pos, "elbow_flex")
+                time.sleep(0.2)  # Short pause for movement
+            except Exception as e:
+                print(f"Error moving elbow: {e}")
             
         elif cmd == 's':
             # Elbow DOWN
             elbow_flex_pos -= STEP_SIZE
             print(f"Moving elbow DOWN to: {elbow_flex_pos}")
-            arm.write("Goal_Position", elbow_flex_pos, "elbow_flex")
+            try:
+                arm.write("Goal_Position", elbow_flex_pos, "elbow_flex")
+                time.sleep(0.2)  # Short pause for movement
+            except Exception as e:
+                print(f"Error moving elbow: {e}")
             
         elif cmd == 'a':
-            # Rotate LEFT (shoulder pan)
+            # Rotate LEFT
             shoulder_pan_pos += STEP_SIZE
             print(f"Rotating shoulder LEFT to: {shoulder_pan_pos}")
-            arm.write("Goal_Position", shoulder_pan_pos, "shoulder_pan")
+            try:
+                arm.write("Goal_Position", shoulder_pan_pos, "shoulder_pan")
+                time.sleep(0.2)  # Short pause for movement
+            except Exception as e:
+                print(f"Error rotating shoulder: {e}")
             
         elif cmd == 'd':
-            # Rotate RIGHT (shoulder pan)
+            # Rotate RIGHT
             shoulder_pan_pos -= STEP_SIZE
             print(f"Rotating shoulder RIGHT to: {shoulder_pan_pos}")
-            arm.write("Goal_Position", shoulder_pan_pos, "shoulder_pan")
+            try:
+                arm.write("Goal_Position", shoulder_pan_pos, "shoulder_pan")
+                time.sleep(0.2)  # Short pause for movement
+            except Exception as e:
+                print(f"Error rotating shoulder: {e}")
+        
+        elif cmd == '+':
+            # Increase step size
+            STEP_SIZE += 50
+            print(f"Step size increased to: {STEP_SIZE}")
+            
+        elif cmd == '-':
+            # Decrease step size
+            if STEP_SIZE > 50:
+                STEP_SIZE -= 50
+                print(f"Step size decreased to: {STEP_SIZE}")
+            else:
+                print("Step size already at minimum (50)")
+                
+        elif cmd == 'h':
+            # Go to home position
+            print("Moving to home position...")
+            shoulder_pan_pos = 2000  # Center position
+            elbow_flex_pos = 3200    # Middle position
+            try:
+                # Move shoulder first
+                arm.write("Goal_Position", shoulder_pan_pos, "shoulder_pan")
+                time.sleep(0.5)
+                # Then move elbow
+                arm.write("Goal_Position", elbow_flex_pos, "elbow_flex")
+                time.sleep(0.5)
+                print("✅ Home position reached")
+            except Exception as e:
+                print(f"Error moving to home: {e}")
         
         elif cmd == 'r':
-            # Read current positions
+            # Try to read positions
             try:
                 positions = arm.read("Present_Position")
                 print("Current positions:")
@@ -126,16 +166,30 @@ try:
             except Exception as e:
                 print(f"Error reading positions: {e}")
         
+        elif cmd == 'v':
+            # Try to read voltage
+            try:
+                # Read present voltage from all motors (typically register 144)
+                voltage = arm.read("Present_Input_Voltage")
+                print(f"Motor voltages (in 0.1V units): {voltage}")
+                print(f"Elbow motor voltage: {voltage[2]/10.0}V")
+                
+                if any(v < 110 for v in voltage):  # Less than 11V
+                    print("⚠️ Warning: LOW VOLTAGE detected! Some motors may not function properly.")
+                    print("Check that the 12V power supply is firmly connected and working.")
+                else:
+                    print("✅ Voltage levels look good!")
+            except Exception as e:
+                print(f"Error reading voltage: {e}")
+                print("Try checking physical connections and power source.")
+        
         elif cmd == 'q':
             print("Exiting...")
             break
         
         else:
-            print("Unknown command. Use w/a/s/d/r/q")
+            print("Unknown command. Use w/a/s/d/+/-/h/r/v/q")
 
-except KeyboardInterrupt:
-    print("\nProgram interrupted by user.")
-    
 except Exception as e:
     print(f"Error: {e}")
 
