@@ -121,7 +121,7 @@ SEQUENCES = {
 SEQUENCE_TO_RUN = "dance"  # Change to any sequence name from SEQUENCES
 
 # Movement speed (lower = slower, higher = faster)
-VELOCITY_PROFILE = 15  # Slower for safety with larger movements
+VELOCITY_PROFILE = 25  # Moderately slow for safety with larger movements
 
 # --------------------------------------------------
 # EXECUTION CODE BELOW - less need to modify this
@@ -137,9 +137,16 @@ try:
     
     # READ THE CURRENT POSITION FIRST
     print("Reading current position...")
-    BASE_POSITION = arm.read("Present_Position")
-    print(f"Current position: {BASE_POSITION}")
-    
+    try:
+        BASE_POSITION = arm.read("Present_Position")
+        print(f"Current position: {BASE_POSITION}")
+    except Exception as e:
+        print(f"Error reading position: {e}")
+        print("Using default base position instead...")
+        # Default base position from previous runs
+        BASE_POSITION = np.array([2028, 1609, 3139, 3148, 1009, 2507])
+        print(f"Default position: {BASE_POSITION}")
+        
     # Set movement speed
     print(f"Setting profile velocity to {VELOCITY_PROFILE}...")
     arm.write("Profile_Velocity", VELOCITY_PROFILE)
@@ -176,19 +183,22 @@ try:
             time.sleep(duration)
         
         print("Sequence complete!")
-
 except Exception as e:
     print(f"Error: {e}")
 
 finally:
     try:
-        # Reset velocity and ensure we're back home
         print("\nResetting profile velocity...")
         arm.write("Profile_Velocity", 0)
         
-        print("Moving to home position...")
-        arm.write("Goal_Position", BASE_POSITION)
-        time.sleep(2)
+        try:
+            # Only attempt to move back to home position if BASE_POSITION is defined
+            if 'BASE_POSITION' in locals() or 'BASE_POSITION' in globals():
+                print("Moving to home position...")
+                arm.write("Goal_Position", BASE_POSITION)
+                time.sleep(2)
+        except Exception as e:
+            print(f"Error moving to home position: {e}")
         
         print("Disabling torque...")
         arm.write("Torque_Enable", TorqueMode.DISABLED.value)
